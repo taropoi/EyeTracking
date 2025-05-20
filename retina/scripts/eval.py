@@ -30,11 +30,11 @@ def launch_fire(
     num_workers=4,
     wandb_mode="run",  # ["disabled", "run"]
     project_name="event_eye_tracking",
-    arch_name="retina_ann", # ["retina_snn", "retina_ann", "3et"]
-    dataset_name="ini-30", # ["ini-30", "3et-data"]
-    run_name='retina-ann-v2-e1',
-    output_dir="F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output", 
-    path_to_run='F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output\\retina-ann-v2',
+    arch_name="3et", # ["retina_snn", "retina_ann", "3et"]
+    dataset_name="3et-data", # ["ini-30", "3et-data"]
+    run_name=None,
+    output_dir="/datasets/pbonazzi/retina/output/", 
+    path_to_run=None,
     verify_hardware_compatibility=False,
     # dataset_params - splits
     val_idx=1, 

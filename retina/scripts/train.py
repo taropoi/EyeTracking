@@ -22,8 +22,8 @@ seed_everything(1234, workers=True)
 load_dotenv()
 paths = {
     "3et-data": os.getenv("3ET_DATA_PATH"),
-    "ini-30": os.getenv("INI30_DATA_PATH"),
-    "output_dir": os.getenv("OUTPUT_PATH","F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output"),
+    "ini-30": os.getenv("INI30_DATA_PATH"), # kk_added dataset_path
+    "output_dir": os.getenv("OUTPUT_PATH","F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output"), # kk_added output_dir
 }
 
 def launch_fire(
@@ -32,8 +32,8 @@ def launch_fire(
     device=0,
     wandb_mode="run",  # ["disabled", "run"]
     project_name="event_eye_tracking",
-    run_name="retina-snn",
-    path_to_run=None, #'F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output\\retina-ann-v2',
+    run_name="retina-ann-v2-r12", # kk_added run_name
+    path_to_run='F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output\\retina-ann-v2', # kk_added params_dir
     path_to_config="configs/default.yaml"
     ): 
 
@@ -145,25 +145,25 @@ def launch_fire(
         num_sanity_val_steps=0, 
         callbacks=[logging_callback],
         logger=wandb_logger)
-    if path_to_run != None:
+    if path_to_run != None: 
         # trainer.load(path_to_run) 
         checkpoint = torch.load("F:\\1\\EyeTracking\\stage6_retina_gaze\\retina_v2\\output\\retina-ann-v2\\event_eye_tracking\\cwt3w1ml\\checkpoints\\epoch=0-step=395.ckpt",map_location='cuda:0')
         state_dt = {k.replace("model.", ""): v for k, v in checkpoint["state_dict"].items()}
         state_dict = {k.replace("seq_", "seq_model."): v for k, v in state_dt.items()}
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict) # kk_added there is no "trainer.load" function, so I use torch.load to load the model, and modify the state_dict to match the model
 
-    trainer.fit(training_module, datamodule=data_module)
-    trainer.validate(training_module, dataloaders=data_module.val_dataloader())
+    # trainer.fit(training_module, datamodule=data_module) # kk_added I have already load the model, so I don't need to train it again
+    trainer.validate(training_module, dataloaders=data_module.val_dataloader()) 
     
     if training_params["arch_name"] =="retina_ann": 
         model = convert_to_n6(model.cpu(), input_shape=input_shape)
                 
-    example_input = torch.ones(dataset_params["num_bins"], *input_shape)
-    torch.onnx.export(model, example_input, 
-                      os.path.join(out_dir, "models", "model.onnx"), 
-                      input_names=['input'], output_names=['output'], 
-                      opset_version=11, 
-                      dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}})
+    # example_input = torch.ones(dataset_params["num_bins"], *input_shape)
+    # torch.onnx.export(model, example_input, 
+    #                   os.path.join(out_dir, "models", "model.onnx"), 
+    #                   input_names=['input'], output_names=['output'], 
+    #                   opset_version=11, 
+    #                   dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}}) # kk_added commented out: useless in our mission
 
 if __name__ == "__main__":
     fire.Fire(launch_fire)

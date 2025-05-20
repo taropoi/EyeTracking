@@ -205,9 +205,6 @@ class Retina(nn.Module):
         self.seq_model = nn.Sequential(*modules) 
 
     def forward(self, x):
-        if x.dim() == 5:  # 如果输入是 5D 张量
-            x = x.view(-1, x.size(2), x.size(3), x.size(4))  # 合并时间维度到批量维度
-
         return self.seq_model(x)
 
 

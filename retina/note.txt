@@ -1,0 +1,1 @@
+此处使用train.py进行验证，数据预处理主要在ini_30_dataset.py中进行，标签标注在metavision_sparse_optical_flow.py中进行，get_silver.py用于生成索引csv，aedat4_read和raw_read用于读取文件为csv以观察，raw_to_aedat4.py用于数据格式转换

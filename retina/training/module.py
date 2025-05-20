@@ -106,7 +106,9 @@ class EyeTrackingModelModule(pl.LightningModule):
         loss_dict, output_dict = self.compute_loss(outputs, labels)
         output_dict["loss_dict"] = loss_dict
         output_dict["loss"] = loss_dict["total_loss"]
-
+        print(f"Batch val_pixel_error: {64 * output_dict['memory']['distance'].item()}") # kk_added pixel_error print; 64: img_width
+        # Compute pixel_error
+        self.log("val_pixel_error", 64 * output_dict["memory"]["distance"], prog_bar=True) # kk_added pixel_error print; 64: img_width
         # Log validation loss
         self.log("val_loss", loss_dict["total_loss"], prog_bar=True)
 
@@ -162,9 +164,3 @@ class EyeTrackingModelModule(pl.LightningModule):
         loss_dict["total_loss"] = sum(loss_dict.values())
 
         return loss_dict, output_dict
-    
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        event_tensor, *_ = batch
-        event_tensor = event_tensor.to(self.device)
-        outputs = self(event_tensor)
-        return outputs

@@ -32,11 +32,9 @@ def get_ini_30_dataset(name, training_params, dataset_params):
         dataset_params=dataset_params, 
         transform=input_transforms,
         target_transform=target_transforms, 
-        list_experiments=get_indexes(name, dataset_params["ini30_val_idx"]),
-        raw_evt3_path="F:\\1\\EyeTracking\\stage6_retina_gaze\\groundtruth\\output3.raw",
-        raw_label_csv_path="F:\\1\\EyeTracking\\stage6_retina_gaze\\groundtruth\\pupil_positions_output3.csv"
+        list_experiments=get_indexes(name, dataset_params["ini30_val_idx"])
     )
-
+    print(f"Dataset {name} loaded with {len(dataset)} samples.") # kk_added to check the number of samples
     return dataset
 
 def get_indexes(name, val_idx): 
@@ -45,7 +43,8 @@ def get_indexes(name, val_idx):
         return val_idx
 
     elif name=="train":
-        all_idxs = list(range(0, 30)) 
+        # all_idxs = list(range(0, 30)) 
+        all_idxs = list(range(0, 5)) # kk_added ini_30 dataset has 30, but I only created 5 with data: recording.raw(Double Channel)/test.raw(Single Channel)s
         for idx in val_idx:
             all_idxs.remove(idx) 
         return all_idxs 

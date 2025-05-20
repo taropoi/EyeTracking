@@ -54,6 +54,8 @@ class AedatProcessorBase:
     def __read_raw_events_until(self, timestamp):
         assert timestamp >= self.current_ts
         assert timestamp >= self.lowest_ts
+        if timestamp > self.highest_ts:
+            timestamp = self.highest_ts # kk_added in case the timestamp is larger than the highest timestamp, but general case it won't happen
         assert timestamp <= self.highest_ts
 
         events = self.recording.getEventsTimeRange(int(self.current_ts), int(timestamp))

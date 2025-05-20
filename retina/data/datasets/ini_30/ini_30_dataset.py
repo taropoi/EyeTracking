@@ -1,7 +1,7 @@
 """
 This is a file script used for loading the dataset
 """
-from copy_test import parse_evt3_to_numpy
+
 import pathlib
 from typing import List, Callable, Optional
 import os
@@ -29,8 +29,6 @@ class Ini30Dataset:
         list_experiments: list,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        raw_evt3_path: Optional[str] = None,
-        raw_label_csv_path: Optional[str] = None
     ):  
         # Transforms
         self.transform = transform
@@ -59,15 +57,15 @@ class Ini30Dataset:
         self.y = self.y[self.y["exp_name"].isin(filter_values)]
 
         # correct cropped
-        self.min_x, self.max_x = 96, 608
+        self.min_x, self.max_x = 471, 983 # kk_added cut x coord from 1280 to 512
+        # self.min_x, self.max_x = 96, 608
         self.y = self.y[(self.y.x_coord > self.min_x) & (self.y.x_coord < self.max_x)]
         self.y.x_coord -= self.min_x
-        self.y.y_coord += 16
-
+        # self.y.y_coord += 16 
+        self.y.y_coord -= 32 # kk_added convert y coord from 720 to 512, actually the cut next line only would cut the index, it doesn't cut the labels or events
+        self.y = self.y[(self.y.y_coord >= 0) & (self.y.y_coord < 512)] # kk_added in our dataset it may not cut any index at all because the y coord is already in the range of 0-512
         self.avg_dt = 0
         self.items = 0
-        self.raw_evt3_path = raw_evt3_path
-        self.raw_label_csv_path = raw_label_csv_path
 
     def __len__(self):
         return len(self.y)
@@ -77,28 +75,6 @@ class Ini30Dataset:
 
     def load_labels(self, index):
         # collect labels
-        # —— 新增 raw case —— 
-        if self.raw_label_csv_path is not None:
-            df = pd.read_csv(self.raw_label_csv_path)
-            raw_ts = df["timestamp"].to_numpy()
-            raw_x  = df["center_x"].to_numpy()
-            raw_y  = df["center_y"].to_numpy()
-            
-            mask = (raw_x > self.min_x) & (raw_x < self.max_x)
-            x_crop = raw_x[mask] - self.min_x
-            y_crop = raw_y[mask] + 16
-            ts     = raw_ts[mask]
-            
-            # 4. 构建标准 DataFrame：保持 timestamp、center_x/center_y 这几列名
-            df2 = pd.DataFrame({
-                "timestamp": ts,
-                "center_x":  x_crop,
-                "center_y":  y_crop,
-            })
-            # 5. 排序并重索引
-            df2 = df2.sort_values("timestamp").reset_index(drop=True)
-
-            return df2
         item = self.y.iloc[index]
         path_to_exp = os.path.join(self.data_dir, item["exp_name"])
 
@@ -115,31 +91,13 @@ class Ini30Dataset:
 
         # center crop labels : 640x480 -> 512x512
         tab.center_x = 512 - (tab.center_x - self.min_x)
-        tab.center_y = 512 - (tab.center_y + 16)
+        # tab.center_y = 512 - (tab.center_y + 16)
+        tab.center_y = 512 - (tab.center_y - 32) # kk_added convert y coord from 720 to 512 and x,y coord rotate 180° here
 
         return tab
 
     def load_events(self, index):
-        if self.raw_evt3_path is not None:
-            # 1) 读 raw EVT3
-            data = parse_evt3_to_numpy(self.raw_evt3_path)
-            # 2) 可以做和原来一样的 center-crop + 下采样
-            xy  = data["xy"]
-            t   = data["t"]
-            p   = data["p"]
-            # center crop: 640x480 -> 512x512
-            mask = (xy[:,0] > self.min_x) & (xy[:,0] < self.max_x)
-            xy  = xy[mask];  t = t[mask]; p = p[mask]
-            xy[:,0] -= self.min_x;  xy[:,1] += 16
-            # downsample: 512 -> img_width
-            xy //= (512 // self.img_width)
-            sort_idx = np.argsort(t)
-            xy = xy[sort_idx]
-            t = t[sort_idx]
-            p = p[sort_idx]
-            # df = pd.DataFrame({"xy": xy, "t": t, "p": p})
-            # df.to_csv("rawdata.csv", index=False)
-            return {"xy": xy, "t": t, "p": p}
+        # collect events
         item = self.y.iloc[index]
         path_to_exp = os.path.join(self.data_dir, item["exp_name"])
         aedat_path = pathlib.Path(os.path.join(path_to_exp, "events.aedat4"))
@@ -155,7 +113,12 @@ class Ini30Dataset:
         evs_features = evs_features[evs_idx]
         evs_coord = evs_coord[evs_idx, :]
         evs_coord[:, 0] -= self.min_x
-        evs_coord[:, 1] += 16
+        # evs_coord[:, 1] += 16
+        evs_coord[:, 1] -= 32 # kk_added offset
+        valid = (evs_coord[:,1] >= 0) & (evs_coord[:,1] < 512)
+        evs_coord = evs_coord[valid, :]
+        evs_timestamp = evs_timestamp[valid]
+        evs_features = evs_features[valid] # kk_added from line 116 to 121, cut y coord out of range(0~512)
 
         # down sample : 512x512 -> img_width x img_height
         evs_coord //= 512 // self.img_width
@@ -238,7 +201,7 @@ class Ini30Dataset:
             # move pointers
             start_idx += t.shape[0]
 
-        frames = torch.rot90(torch.tensor(data), k=2, dims=(2, 3))
+        frames = torch.rot90(torch.tensor(data), k=2, dims=(2, 3)) # kk_added x,y coord of events are rotated 180° here
         frames = frames.permute(0, 1, 3, 2) 
         labels = self.target_transform(np.vstack([x_axis, y_axis]))
 
@@ -347,69 +310,6 @@ class Ini30Dataset:
         return frames, labels, avg_dt
 
     def __getitem__(self, index):
-        data = self.load_events(index)
-        ts, xy, p = data["t"], data["xy"], data["p"]
-
-        if self.raw_evt3_path is not None:
-            # 1) 初始化一个全 0 的事件帧数组 (T, C, W, H)
-            frames_np = np.zeros(
-                (self.num_bins, self.input_channel, self.img_width, self.img_height),
-                dtype=np.float32,
-            )
-            # 2) 定义时间切分边界 [t0, t1, …, tN]
-            t_start, t_end = ts.min(), ts.max()
-            cuts = np.linspace(t_start, t_end, self.num_bins + 1)
-
-            # 3) 遍历每个 bin，累加事件
-            for i in range(self.num_bins):
-                mask = (ts >= cuts[i]) & (ts < cuts[i + 1])
-                this_xy = xy[mask].copy()
-                this_p = p[mask]
-
-                # 中心裁剪 + Y 平移
-                valid = (this_xy[:, 0] > self.min_x) & (this_xy[:, 0] < self.max_x)
-                this_xy = this_xy[valid]
-                this_p = this_p[valid]
-                this_xy[:, 0] -= self.min_x
-                this_xy[:, 1] += 16
-
-                # 下采样 512->img_width
-                this_xy //= (512 // self.img_width)
-
-                # 累加不同极性
-                for polarity in [0, 1]:
-                    coords = this_xy[this_p == polarity]
-                    if coords.size > 0:
-                        np.add.at(
-                            frames_np[i, polarity],
-                            (coords[:, 0], coords[:, 1]),
-                            1,
-                        )
-
-                # 极性冲突处理：同一像素若两个通道都有事件，保留事件数更多的那个
-                if self.input_channel > 1:
-                    ch0 = frames_np[i, 0]
-                    ch1 = frames_np[i, 1]
-                    # mask0: 0 通道事件 >= 1 通道
-                    keep0 = ch0 >= ch1
-                    # mask1: 1 通道事件 > 0 通道
-                    keep1 = ch1 > ch0
-                    ch0[~keep0] = 0
-                    ch1[~keep1] = 0
-
-                # 二值化（任何大于 1 的计数都变成 1）
-                frames_np[i] = np.clip(frames_np[i], 0, 1)
-
-            # 4) 转为 tensor 并对齐方向（与 AEDAT 分支保持一致）
-            frames = torch.from_numpy(frames_np)
-            frames = torch.rot90(frames, k=2, dims=(2, 3))
-            frames = frames.permute(0, 1, 3, 2)
-
-            # 5) 构造 dummy labels（推理时可随意）
-            dummy_labels = torch.zeros(self.num_bins, 2, dtype=torch.float32)
-            avg_dt = (t_end - t_start) / self.num_bins
-
-            return frames, dummy_labels, avg_dt
         labels = self.load_labels(index)
         events = self.load_events(index)
         tmp_struct = make_structured_array(
