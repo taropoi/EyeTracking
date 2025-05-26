@@ -1,0 +1,14 @@
+pandas 
+wandb 
+opencv-python
+fire 
+matplotlib 
+tqdm
+torchvision
+tonic 
+sinabs >= 2.0
+# sinabs-dynapcnn
+dv-processing 
+thop 
+onnx
+tables  
